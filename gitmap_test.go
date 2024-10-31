@@ -7,13 +7,14 @@ package gitmap
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 )
 
 var (
-	revision   = "7d46b653c9674510d808815c4c92c7dc10bedc16"
+	revision   = "acfc087e68546b364b1ae82f8847566a486c19a2"
 	repository string
 )
 
@@ -22,6 +23,36 @@ func init() {
 	if repository, err = os.Getwd(); err != nil {
 		panic(err)
 	}
+
+	repository = "/Users/stevenobelia/Desktop/_scratch/clean/archive/docs"
+}
+
+func TestDocs(t *testing.T) {
+	var (
+		gm  GitMap
+		gr  *GitRepo
+		err error
+		gi  *GitInfo
+		ok  bool
+	)
+
+	if gr, err = Map(Options{Repository: repository, Revision: revision}); err != nil {
+		t.Fatal(err)
+	}
+
+	gm = gr.Files
+
+	if gi, ok = gm["README.md"]; !ok {
+		t.Fatal("filename")
+	}
+
+	jsonBytes, err := json.Marshal(gi)
+	if err != nil {
+		fmt.Println("Error marshaling:", err)
+		return
+	}
+	jsonStr := string(jsonBytes)
+	fmt.Println(jsonStr)
 }
 
 func TestMap(t *testing.T) {

@@ -47,6 +47,7 @@ type GitInfo struct {
 	AuthorEmail     string    `json:"authorEmail"`     // The author email address, respecting .mailmap
 	AuthorDate      time.Time `json:"authorDate"`      // The author date
 	CommitDate      time.Time `json:"commitDate"`      // The commit date
+	CreateDate      time.Time `json:"createDate"`      // The create date
 	Body            string    `json:"body"`            // The commit message body
 }
 
@@ -116,8 +117,10 @@ func Map(opts Options) (*GitRepo, error) {
 			if filename == "" {
 				continue
 			}
-			if _, ok := m[filename]; !ok {
+			if originGi, ok := m[filename]; !ok {
 				m[filename] = gitInfo
+			} else {
+				originGi.CreateDate = gitInfo.AuthorDate
 			}
 		}
 	}
@@ -166,6 +169,7 @@ func toGitInfo(entry string) (*GitInfo, error) {
 		AuthorEmail:     items[4],
 		AuthorDate:      authorDate,
 		CommitDate:      commitDate,
+		CreateDate:      authorDate,
 		Body:            strings.TrimSpace(items[7]),
 	}, nil
 }
