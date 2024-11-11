@@ -87,7 +87,7 @@ func Map(opts Options) (*GitRepo, error) {
 	targetPath := filepath.Join(parentDir, "assets", "git-info", "contentGitInfo.json")
 	gim, err := ReadJSONFile(targetPath)
 	if err != nil {
-		return nil, err
+		fmt.Printf("targetPath: %s %s\n", targetPath, err)
 	}
 
 	// First get the top level repo path
