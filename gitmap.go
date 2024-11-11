@@ -7,9 +7,12 @@ package gitmap
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -38,6 +41,8 @@ type GitRepo struct {
 // GitMap maps filenames to Git revision information.
 type GitMap map[string]*GitInfo
 
+type ContentGitInfo = map[string]GitInfo
+
 // GitInfo holds information about a Git commit.
 type GitInfo struct {
 	Hash            string    `json:"hash"`            // Commit hash
@@ -48,7 +53,8 @@ type GitInfo struct {
 	AuthorDate      time.Time `json:"authorDate"`      // The author date
 	CommitDate      time.Time `json:"commitDate"`      // The commit date
 	CreateDate      time.Time `json:"createDate"`      // The create date
-	Body            string    `json:"body"`            // The commit message body
+	FromGetJson     *GitInfo
+	Body            string `json:"body"` // The commit message body
 }
 
 // Runner is an interface for running Git commands,
@@ -76,6 +82,13 @@ func Map(opts Options) (*GitRepo, error) {
 	}
 
 	m := make(GitMap)
+
+	parentDir := filepath.Dir(opts.Repository)
+	targetPath := filepath.Join(parentDir, "assets", "git-info", "contentGitInfo.json")
+	gim, err := ReadJSONFile(targetPath)
+	if err != nil {
+		return nil, err
+	}
 
 	// First get the top level repo path
 	absRepoPath, err := filepath.Abs(opts.Repository)
@@ -107,17 +120,22 @@ func Map(opts Options) (*GitRepo, error) {
 
 	for _, e := range entries {
 		lines := strings.Split(e, "\x1d")
-		gitInfo, err := toGitInfo(lines[0])
-		if err != nil {
-			return nil, err
-		}
 		filenames := strings.Split(lines[1], "\n")
+
 		for _, filename := range filenames {
+
+			gitInfo, err := toGitInfo(lines[0])
+			if err != nil {
+				return nil, err
+			}
 			filename := strings.TrimSpace(filename)
 			if filename == "" {
 				continue
 			}
 			if originGi, ok := m[filename]; !ok {
+				if info, exists := gim[filename]; exists {
+					gitInfo.FromGetJson = &info
+				}
 				m[filename] = gitInfo
 			} else {
 				originGi.CreateDate = gitInfo.AuthorDate
@@ -126,6 +144,31 @@ func Map(opts Options) (*GitRepo, error) {
 	}
 
 	return &GitRepo{Files: m, TopLevelAbsPath: topLevelPath}, nil
+}
+
+// FileExists checks if a file exists.
+func FileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return !os.IsNotExist(err)
+}
+func ReadJSONFile(filename string) (ContentGitInfo, error) {
+	if !FileExists(filename) {
+		return nil, errors.New("file does not exist")
+	}
+
+	// Read the file content
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the JSON data
+	var result ContentGitInfo
+	err = json.Unmarshal(data, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func git(opts Options, args ...string) (string, error) {
@@ -170,6 +213,7 @@ func toGitInfo(entry string) (*GitInfo, error) {
 		AuthorDate:      authorDate,
 		CommitDate:      commitDate,
 		CreateDate:      authorDate,
+		FromGetJson:     nil,
 		Body:            strings.TrimSpace(items[7]),
 	}, nil
 }
