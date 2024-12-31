@@ -54,7 +54,10 @@ type GitInfo struct {
 	CommitDate      time.Time `json:"commitDate"`      // The commit date
 	CreateDate      time.Time `json:"createDate"`      // The create date
 	FromGetJson     *GitInfo
-	Body            string `json:"body"` // The commit message body
+	MergeCreateDate time.Time `json:"mergeCreateDate"` // The merge create date
+	MergeUpdateDate time.Time `json:"mergeUpdateDate"` // The merge update date
+	Year            string    `json:"year"`            // timeline year for group
+	Body            string    `json:"body"`            // The commit message body
 }
 
 // Runner is an interface for running Git commands,
@@ -133,13 +136,24 @@ func Map(opts Options) (*GitRepo, error) {
 				continue
 			}
 			if originGi, ok := m[filename]; !ok {
-				if info, exists := gim[filename]; exists {
-					gitInfo.FromGetJson = &info
-				}
 				m[filename] = gitInfo
 			} else {
 				originGi.CreateDate = gitInfo.AuthorDate
+				originGi.MergeCreateDate = gitInfo.AuthorDate
 			}
+
+			calcInfo := m[filename]
+			if jsonInfo, exists := gim[filename]; exists {
+				calcInfo.FromGetJson = &jsonInfo
+
+				if jsonInfo.CreateDate.Before(calcInfo.CreateDate) {
+					calcInfo.MergeCreateDate = jsonInfo.CreateDate
+				}
+				if jsonInfo.AuthorDate.After(calcInfo.AuthorDate) {
+					calcInfo.MergeUpdateDate = jsonInfo.AuthorDate
+				}
+			}
+			calcInfo.Year = calcInfo.MergeCreateDate.Format("2006")
 		}
 	}
 
@@ -214,6 +228,9 @@ func toGitInfo(entry string) (*GitInfo, error) {
 		CommitDate:      commitDate,
 		CreateDate:      authorDate,
 		FromGetJson:     nil,
+		MergeCreateDate: authorDate,
+		MergeUpdateDate: authorDate,
+		Year:            "1970",
 		Body:            strings.TrimSpace(items[7]),
 	}, nil
 }
